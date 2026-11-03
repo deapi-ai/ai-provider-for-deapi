@@ -1,6 +1,6 @@
 === AI Provider for deAPI ===
 Contributors: deapi
-Tags: ai, image generation, video generation, text to speech, flux
+Tags: ai, image generation, video generation, text to speech, embeddings
 Requires at least: 6.9
 Tested up to: 7.1
 Stable tag: 0.1.0
@@ -30,6 +30,12 @@ The plugin lists only the models available to your deAPI account. deAPI has no c
 
 * WordPress 7.0 or later (the plugin loads on 6.9 but does nothing without the AI Client).
 * A deAPI account and API key. You can [create an account](https://app.deapi.ai/register).
+
+**Source code**
+
+The plugin ships its full, unminified source. Development happens on [GitHub](https://github.com/deapi-ai/ai-provider-for-deapi), where you can report issues and run the tests.
+
+The model classes follow the structure of the [AI Provider for OpenAI](https://wordpress.org/plugins/ai-provider-for-openai/) plugin by the WordPress AI Team, which is licensed under GPLv2 or later.
 
 == Installation ==
 
