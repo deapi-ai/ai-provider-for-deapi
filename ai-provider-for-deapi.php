@@ -3,7 +3,7 @@
 /**
  * Plugin Name:       AI Provider for deAPI
  * Plugin URI:        https://github.com/deapi-ai/ai-provider-for-deapi
- * Description:       deAPI image generation and editing, text-to-speech and embedding models for the WordPress AI Client.
+ * Description:       deAPI image and video generation, image editing, text-to-speech and embedding models for the WordPress AI Client.
  * Requires at least: 6.9
  * Requires PHP:      7.4
  * Version:           0.1.0

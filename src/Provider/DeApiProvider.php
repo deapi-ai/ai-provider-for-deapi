@@ -10,10 +10,10 @@ use DeApi\AiProvider\Metadata\DeApiModelMetadataDirectory;
 use DeApi\AiProvider\Models\DeApiEmbeddingGenerationModel;
 use DeApi\AiProvider\Models\DeApiImageGenerationModel;
 use DeApi\AiProvider\Models\DeApiTextToSpeechConversionModel;
+use DeApi\AiProvider\Models\DeApiVideoGenerationModel;
 use WordPress\AiClient\AiClient;
 use WordPress\AiClient\Common\Exception\RuntimeException;
 use WordPress\AiClient\Providers\ApiBasedImplementation\AbstractApiProvider;
-use WordPress\AiClient\Providers\ApiBasedImplementation\ListModelsApiBasedProviderAvailability;
 use WordPress\AiClient\Providers\Contracts\ModelMetadataDirectoryInterface;
 use WordPress\AiClient\Providers\Contracts\ProviderAvailabilityInterface;
 use WordPress\AiClient\Providers\DTO\ProviderMetadata;
@@ -28,7 +28,7 @@ use WordPress\AiClient\Providers\Models\EmbeddingGeneration\Contracts\EmbeddingG
  * The deAPI provider.
  *
  * deAPI serves open models through an OpenAI-compatible gateway. The gateway has no chat endpoint, so this
- * provider offers image generation and editing, text-to-speech and embeddings only.
+ * provider offers image generation and editing, video generation, text-to-speech and embeddings only.
  *
  * @since 0.1.0
  */
@@ -91,6 +91,9 @@ class DeApiProvider extends AbstractApiProvider
             if ($capability->isTextToSpeechConversion()) {
                 return new DeApiTextToSpeechConversionModel($modelMetadata, $providerMetadata);
             }
+            if ($capability->isVideoGeneration()) {
+                return new DeApiVideoGenerationModel($modelMetadata, $providerMetadata);
+            }
             // Embedding generation support was added in AI Client 1.4.0.
             if (
                 $capability->isEmbeddingGeneration() &&
@@ -121,10 +124,10 @@ class DeApiProvider extends AbstractApiProvider
         ];
         // Provider description support was added in AI Client 1.2.0.
         if (version_compare(AiClient::VERSION, '1.2.0', '>=')) {
-            $description = 'Image generation and editing, text-to-speech and embeddings with open models such as FLUX.';
+            $description = 'Image and video generation, image editing, text-to-speech and embeddings with open models such as FLUX, LTX and MiniMax.';
             if (function_exists('__')) {
                 // phpcs:ignore Generic.Files.LineLength.TooLong
-                $description = __('Image generation and editing, text-to-speech and embeddings with open models such as FLUX.', 'ai-provider-for-deapi');
+                $description = __('Image and video generation, image editing, text-to-speech and embeddings with open models such as FLUX, LTX and MiniMax.', 'ai-provider-for-deapi');
             }
             $providerMetadataArgs[] = $description;
         }
@@ -150,9 +153,7 @@ class DeApiProvider extends AbstractApiProvider
     protected static function createProviderAvailability(): ProviderAvailabilityInterface
     {
         // A valid key can list models. The gateway answers 401 for a missing or rejected key.
-        return new ListModelsApiBasedProviderAvailability(
-            static::modelMetadataDirectory()
-        );
+        return new DeApiProviderAvailability();
     }
 
     /**

@@ -8,9 +8,11 @@ use DeApi\AiProvider\Metadata\DeApiModelMetadataDirectory;
 use DeApi\AiProvider\Models\DeApiEmbeddingGenerationModel;
 use DeApi\AiProvider\Models\DeApiImageGenerationModel;
 use DeApi\AiProvider\Models\DeApiTextToSpeechConversionModel;
+use DeApi\AiProvider\Models\DeApiVideoGenerationModel;
 use DeApi\AiProvider\Provider\DeApiProvider;
 use PHPUnit\Framework\TestCase;
 use WordPress\AiClient\Common\Exception\InvalidArgumentException;
+use WordPress\AiClient\Common\Exception\RuntimeException;
 use WordPress\AiClient\Files\DTO\File;
 use WordPress\AiClient\Messages\DTO\Message;
 use WordPress\AiClient\Messages\DTO\MessagePart;
@@ -31,6 +33,7 @@ use WordPress\AiClient\Providers\Models\Enums\OptionEnum;
  * @covers \DeApi\AiProvider\Models\DeApiImageGenerationModel
  * @covers \DeApi\AiProvider\Models\DeApiTextToSpeechConversionModel
  * @covers \DeApi\AiProvider\Models\DeApiEmbeddingGenerationModel
+ * @covers \DeApi\AiProvider\Models\DeApiVideoGenerationModel
  */
 class DeApiProviderTest extends TestCase
 {
@@ -46,6 +49,7 @@ class DeApiProviderTest extends TestCase
         'Ltx2_5_22B_Dist_INT8',
         'Flux1schnell',
         'QwenImageEdit_Plus_NF4',
+        'MiniMaxH3_33B_Turbo_INT8',
     ];
 
     public function testProviderMetadata(): void
@@ -72,6 +76,22 @@ class DeApiProviderTest extends TestCase
         $this->assertNull($emptyOptions->getTimeout());
     }
 
+    public function testAvailabilityAsksTheApiEveryTime(): void
+    {
+        $availability = new \DeApi\AiProvider\Provider\DeApiProviderAvailability();
+        $transporter = new FakeTransporter(
+            $this->modelsResponse(),
+            FakeTransporter::json(['error' => ['code' => 'invalid_api_key']], 401)
+        );
+        $availability->setHttpTransporter($transporter);
+        $availability->setRequestAuthentication(new ApiKeyRequestAuthentication('test-key'));
+
+        $this->assertTrue($availability->isConfigured());
+        $this->assertFalse($availability->isConfigured());
+        $this->assertCount(2, $transporter->requests);
+        $this->assertSame('https://oai.deapi.ai/v1/models', $transporter->requests[1]->getUri());
+    }
+
     public function testDirectoryListsOnlySupportedModelsInRankOrder(): void
     {
         $transporter = new FakeTransporter($this->modelsResponse());
@@ -84,7 +104,7 @@ class DeApiProviderTest extends TestCase
             $directory->listModelMetadata()
         );
 
-        $expected = ['Flux1schnell', 'Flux_2_Klein_4B_BF16', 'Kokoro'];
+        $expected = ['Flux1schnell', 'Flux_2_Klein_4B_BF16', 'Ltx2_5_22B_Dist_INT8', 'MiniMaxH3_33B_Turbo_INT8', 'Kokoro'];
         if (interface_exists(EmbeddingGenerationModelInterface::class)) {
             $expected[] = 'Bge_M3_FP16';
         }
@@ -246,6 +266,78 @@ class DeApiProviderTest extends TestCase
         $this->assertSame([0.4, 0.5, 0.6], $result->getEmbeddings()[1]->getValues());
     }
 
+    public function testVideoGenerationPollsAndDownloadsContent(): void
+    {
+        $job = ['id' => 'vid-1', 'object' => 'video', 'model' => 'Ltx2_5_22B_Dist_INT8', 'seconds' => '5'];
+        $transporter = new FakeTransporter(
+            FakeTransporter::json($job + ['status' => 'queued', 'progress' => 0]),
+            FakeTransporter::json($job + ['status' => 'in_progress', 'progress' => 50]),
+            FakeTransporter::json($job + ['status' => 'completed', 'progress' => 100]),
+            new Response(200, ['Content-Type' => ['video/mp4']], 'mp4-bytes')
+        );
+        $model = $this->model('Ltx2_5_22B_Dist_INT8', $transporter);
+        $model->setConfig(ModelConfig::fromArray([
+            'outputMediaAspectRatio' => '16:9',
+            'customOptions' => ['seconds' => 5],
+        ]));
+
+        $result = $model->generateVideoResult([
+            $this->userMessage(
+                new MessagePart('the camera pushes in slowly'),
+                new MessagePart(new File('https://example.com/frame.png', 'image/png'))
+            ),
+        ]);
+
+        $requests = $transporter->requests;
+        $this->assertCount(4, $requests);
+        $this->assertSame('https://oai.deapi.ai/v1/videos', $requests[0]->getUri());
+        $this->assertSame(
+            [
+                'model' => 'Ltx2_5_22B_Dist_INT8',
+                'prompt' => 'the camera pushes in slowly',
+                'input_reference' => ['image_url' => 'https://example.com/frame.png'],
+                'size' => '1344x768',
+                'seconds' => '5',
+            ],
+            $requests[0]->getData()
+        );
+        $this->assertSame('https://oai.deapi.ai/v1/videos/vid-1', $requests[1]->getUri());
+        $this->assertSame('https://oai.deapi.ai/v1/videos/vid-1/content', $requests[3]->getUri());
+        $this->assertSame('Bearer test-key', $requests[3]->getHeaderAsString('Authorization'));
+        $this->assertSame([5, 5], $model->pauses);
+
+        $this->assertSame('vid-1', $result->getId());
+        $file = $result->getCandidates()[0]->getMessage()->getParts()[0]->getFile();
+        $this->assertSame('video/mp4', $file->getMimeType());
+        $this->assertSame(base64_encode('mp4-bytes'), $file->getBase64Data());
+    }
+
+    public function testVideoGenerationReportsFailedJob(): void
+    {
+        $transporter = new FakeTransporter(
+            FakeTransporter::json(['id' => 'vid-2', 'status' => 'queued']),
+            FakeTransporter::json([
+                'id' => 'vid-2',
+                'status' => 'failed',
+                'error' => ['code' => 'job_failed', 'message' => 'Job failed during rendering.'],
+            ])
+        );
+        $model = $this->model('MiniMaxH3_33B_Turbo_INT8', $transporter);
+
+        $this->expectException(RuntimeException::class);
+        $this->expectExceptionMessage('Job failed during rendering.');
+        $model->generateVideoResult([$this->userMessage(new MessagePart('a sunrise'))]);
+    }
+
+    public function testVideoGenerationRejectsSeveralImages(): void
+    {
+        $model = $this->model('MiniMaxH3_33B_Turbo_INT8', new FakeTransporter());
+        $image = new MessagePart(new File('https://example.com/frame.png', 'image/png'));
+
+        $this->expectException(InvalidArgumentException::class);
+        $model->generateVideoResult([$this->userMessage(new MessagePart('a sunrise'), $image, $image)]);
+    }
+
     private function modelsResponse(): Response
     {
         return FakeTransporter::json([
@@ -268,14 +360,24 @@ class DeApiProviderTest extends TestCase
     }
 
     /**
-     * @return DeApiImageGenerationModel|DeApiTextToSpeechConversionModel|DeApiEmbeddingGenerationModel
+     * @return DeApiImageGenerationModel|DeApiTextToSpeechConversionModel|DeApiEmbeddingGenerationModel|DeApiVideoGenerationModel
      */
     private function model(string $modelId, FakeTransporter $transporter)
     {
         $metadata = $this->directory(new FakeTransporter($this->modelsResponse()))->getModelMetadata($modelId);
         $providerMetadata = DeApiProvider::metadata();
 
-        if ($modelId === 'Kokoro') {
+        if ($modelId === 'Ltx2_5_22B_Dist_INT8' || $modelId === 'MiniMaxH3_33B_Turbo_INT8') {
+            $model = new class ($metadata, $providerMetadata) extends DeApiVideoGenerationModel {
+                /** @var list<int> */
+                public array $pauses = [];
+
+                protected function pause(int $seconds): void
+                {
+                    $this->pauses[] = $seconds;
+                }
+            };
+        } elseif ($modelId === 'Kokoro') {
             $model = new DeApiTextToSpeechConversionModel($metadata, $providerMetadata);
         } elseif ($modelId === 'Bge_M3_FP16') {
             $model = new DeApiEmbeddingGenerationModel($metadata, $providerMetadata);

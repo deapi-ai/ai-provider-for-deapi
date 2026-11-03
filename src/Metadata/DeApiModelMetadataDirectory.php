@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace DeApi\AiProvider\Metadata;
 
+use DeApi\AiProvider\Models\DeApiVideoGenerationModel;
 use DeApi\AiProvider\Provider\DeApiProvider;
 use WordPress\AiClient\Files\Enums\FileTypeEnum;
 use WordPress\AiClient\Files\Enums\MediaOrientationEnum;
@@ -23,8 +24,8 @@ use WordPress\AiClient\Providers\OpenAiCompatibleImplementation\AbstractOpenAiCo
  * Model metadata directory for deAPI.
  *
  * `GET /v1/models` lists the models available to the account but carries no capabilities, so the capabilities
- * of the supported models are declared here. Models the AI Client cannot use (for example transcription, video,
- * or new models this version does not know yet) are left out.
+ * of the supported models are declared here. Models the AI Client cannot use (for example transcription) or that
+ * this version does not know yet are left out.
  *
  * @since 0.1.0
  */
@@ -45,6 +46,19 @@ class DeApiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadataD
         'ZImageTurbo_INT8'          => ['name' => 'Z-Image Turbo', 'landscape' => false, 'edit' => false],
         'Flux_2_Klein_4B_BF16'      => ['name' => 'FLUX.2 [klein] 4B', 'landscape' => false, 'edit' => true],
         'ZAnimeDistill_8Step_INT8'  => ['name' => 'Z-Anime Distill', 'landscape' => false, 'edit' => false],
+    ];
+
+    /**
+     * Video generation models. All accept a first-frame image and the sizes in
+     * {@see \DeApi\AiProvider\Models\DeApiVideoGenerationModel::SIZES}.
+     *
+     * @since 0.1.0
+     *
+     * @var array<string, string>
+     */
+    public const VIDEO_MODELS = [
+        'Ltx2_5_22B_Dist_INT8'     => 'LTX-2.5 22B Distilled',
+        'MiniMaxH3_33B_Turbo_INT8' => 'MiniMax H3 33B Turbo',
     ];
 
     /**
@@ -140,6 +154,33 @@ class DeApiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadataD
             );
         }
 
+        if (isset(self::VIDEO_MODELS[$modelId])) {
+            return new ModelMetadata(
+                $modelId,
+                self::VIDEO_MODELS[$modelId],
+                [CapabilityEnum::videoGeneration()],
+                [
+                    new SupportedOption(
+                        OptionEnum::inputModalities(),
+                        [[ModalityEnum::text()], [ModalityEnum::text(), ModalityEnum::image()]]
+                    ),
+                    new SupportedOption(OptionEnum::outputModalities(), [[ModalityEnum::video()]]),
+                    new SupportedOption(OptionEnum::outputMimeType(), ['video/mp4']),
+                    new SupportedOption(OptionEnum::outputFileType(), [FileTypeEnum::inline()]),
+                    new SupportedOption(OptionEnum::outputMediaOrientation(), [
+                        MediaOrientationEnum::square(),
+                        MediaOrientationEnum::landscape(),
+                        MediaOrientationEnum::portrait(),
+                    ]),
+                    new SupportedOption(
+                        OptionEnum::outputMediaAspectRatio(),
+                        array_keys(DeApiVideoGenerationModel::SIZES)
+                    ),
+                    new SupportedOption(OptionEnum::customOptions()),
+                ]
+            );
+        }
+
         if (isset(self::TTS_MODELS[$modelId])) {
             return new ModelMetadata(
                 $modelId,
@@ -224,6 +265,7 @@ class DeApiModelMetadataDirectory extends AbstractOpenAiCompatibleModelMetadataD
     {
         $order = array_merge(
             array_keys(self::IMAGE_MODELS),
+            array_keys(self::VIDEO_MODELS),
             array_keys(self::TTS_MODELS),
             array_keys(self::EMBEDDING_MODELS)
         );
