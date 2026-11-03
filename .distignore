@@ -1,0 +1,16 @@
+.git
+.github
+.gitignore
+.gitattributes
+.distignore
+.wordpress-org
+.wp-env.json
+composer.json
+composer.lock
+phpunit.xml.dist
+tests
+vendor
+node_modules
+README.md
+.phpunit.result.cache
+phpcs.xml.dist
