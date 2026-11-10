@@ -45,7 +45,7 @@ The model classes follow the structure of the [AI Provider for OpenAI](https://w
 
 You can also set the key with the `DEAPI_API_KEY` environment variable or a `DEAPI_API_KEY` constant in `wp-config.php`.
 
-To try it, install the [AI Experiments](https://wordpress.org/plugins/ai/) plugin and use its image generation feature in the post editor.
+To try it, install the [AI](https://wordpress.org/plugins/ai/) plugin, turn on Image Generation and Editing under Settings > AI, then open Media > Generate Image.
 
 == Frequently Asked Questions ==
 
@@ -64,6 +64,12 @@ Usually 30 seconds to 2 minutes. The AI Client waits for the finished MP4, so ca
 = How do I choose a voice? =
 
 Pass a voice ID through the AI Client, for example `af_nova` or `bm_george` for Kokoro. The OpenAI voice names (`alloy`, `echo`, `fable`, `onyx`, `nova`, `shimmer`) also work. The default voice is `alloy`.
+
+== Screenshots ==
+
+1. deAPI connected under Settings > Connectors.
+2. An image generated with deAPI from Media > Generate Image (AI plugin).
+3. Refining a generated image with a text instruction: deAPI edits it with FLUX.2 [klein].
 
 == External services ==
 
