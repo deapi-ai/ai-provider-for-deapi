@@ -1,6 +1,6 @@
 === AI Provider for deAPI ===
 Contributors: deapi
-Tags: ai, image generation, video generation, text to speech, embeddings
+Tags: ai, connector, image generation, video generation, text to speech
 Requires at least: 6.9
 Tested up to: 7.1
 Stable tag: 0.1.0
@@ -45,7 +45,7 @@ The model classes follow the structure of the [AI Provider for OpenAI](https://w
 
 You can also set the key with the `DEAPI_API_KEY` environment variable or a `DEAPI_API_KEY` constant in `wp-config.php`.
 
-To try it, install the [AI](https://wordpress.org/plugins/ai/) plugin, turn on Image Generation and Editing under Settings > AI, then open Media > Generate Image.
+To try it, install the [AI](https://wordpress.org/plugins/ai/) plugin, turn on Image Generation and Editing under Settings > AI, then open Media > Generate Image. Its Text to Speech feature also works with deAPI and creates an audio version of a post from the editor sidebar.
 
 == Frequently Asked Questions ==
 
@@ -70,6 +70,7 @@ Pass a voice ID through the AI Client, for example `af_nova` or `bm_george` for 
 1. deAPI connected under Settings > Connectors.
 2. An image generated with deAPI from Media > Generate Image (AI plugin).
 3. Refining a generated image with a text instruction: deAPI edits it with FLUX.2 [klein].
+4. An audio version of a post created with deAPI text-to-speech (Text to Speech feature of the AI plugin).
 
 == External services ==
 
